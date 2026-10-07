@@ -43,6 +43,7 @@
 #include "Core/System.h"
 #include "Core/MIPS/JitCommon/JitCommon.h"
 #include "Core/CoreTiming.h"
+#include "Core/HLE/ReplaceTables.h"
 
 MIPSState mipsr4k;
 MIPSState *currentMIPS = &mipsr4k;
@@ -439,6 +440,7 @@ int MIPSState::RunLoopUntil(u64 globalTicks) {
 }
 
 void MIPSState::InvalidateICacheRangeImmediate(u32 address, u32 length) {
+	Replacement_CheckRange(address, length);
 	if (!MIPSComp::jit) {
 		// Nothing to do.
 		return;
@@ -471,6 +473,7 @@ void MIPSState::ProcessPendingInvalidates() {
 }
 
 void MIPSState::InvalidateICacheRangeDeferred(u32 address, u32 length) {
+	Replacement_CheckRange(address, length);
 	if (!MIPSComp::jit) {
 		// Nothing to do.
 		return;
@@ -482,6 +485,7 @@ void MIPSState::InvalidateICacheRangeDeferred(u32 address, u32 length) {
 }
 
 void MIPSState::ClearJitCacheDeferred() {
+	Replacement_CheckRange(0, 0xFFFFFFFF);
 	if (!MIPSComp::jit) {
 		return;
 	}

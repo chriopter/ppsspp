@@ -41,6 +41,7 @@
 #include <map>
 
 #include "Common/CommonTypes.h"
+#include "Core/MemMap.h"
 #include "Core/MIPS/JitCommon/JitCommon.h"
 
 typedef int (* ReplaceFunc)();
@@ -72,11 +73,35 @@ int GetNumReplacementFuncs();
 std::vector<int> GetReplacementFuncIndexes(u64 hash, int funcSize);
 const ReplacementTableEntry *GetReplacementFunc(size_t index);
 
+// Installed replacements never touch PSP memory. The CPU cores ask HasReplacementAt() for every
+// instruction they run or compile, and substitute the CallRepl pseudo-op.
 void WriteReplaceInstructions(u32 address, u64 hash, int size);
 void RestoreReplacedInstruction(u32 address);
 void RestoreReplacedInstructions(u32 startAddr, u32 endAddr);
-bool GetReplacedOpAt(u32 address, u32 *op);
+// Drops hooks in functions the game has changed. Called when the icache is invalidated over them.
+void Replacement_CheckRange(u32 address, u32 length);
 
-// For savestates.  If you call SaveAndClearReplacements(), you must call RestoreSavedReplacements().
-std::map<u32, u32> SaveAndClearReplacements();
-void RestoreSavedReplacements(const std::map<u32, u32> &saved);
+// One bit per instruction, indexed like the block shadow.
+enum : u32 {
+	REPLACEMENT_BITS_WORDS = ((u32)Memory::BLOCK_SHADOW_MASK >> 2) / 32 + 1,
+};
+extern u32 g_replacementBits[REPLACEMENT_BITS_WORDS];
+
+// Can be true for an address whose hook turns out to be stale, see GetReplacementOpAt().
+inline bool HasReplacementAt(u32 address) {
+	const u32 index = (address & Memory::BLOCK_SHADOW_MASK) >> 2;
+	return (g_replacementBits[index >> 5] >> (index & 31)) & 1;
+}
+
+// Only call when HasReplacementAt(). Returns the CallRepl pseudo-op, or the instruction in memory
+// if the game has overwritten the hooked one (which also drops the hook). Address must be valid.
+MIPSOpcode GetReplacementOpAt(u32 address);
+
+// What the CPU runs at a valid address: the CallRepl pseudo-op if hooked, otherwise memory.
+inline MIPSOpcode ReadExecutedOp(u32 address) {
+	if (HasReplacementAt(address)) {
+		return GetReplacementOpAt(address);
+	}
+	return Memory::ReadUnchecked_Instruction(address);
+}
+

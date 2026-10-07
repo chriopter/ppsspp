@@ -47,7 +47,6 @@ namespace MIPSComp {
 		virtual void EatPrefix() = 0;
 
 		virtual void Comp_Generic(MIPSOpcode op) = 0;
-		virtual void Comp_RunBlock(MIPSOpcode op) = 0;
 		virtual void Comp_ReplacementFunc(MIPSOpcode op) = 0;
 		virtual void Comp_ITypeMem(MIPSOpcode op) = 0;
 		virtual void Comp_StoreSync(MIPSOpcode op) = 0;
@@ -135,12 +134,6 @@ namespace MIPSComp {
 		virtual void Compile(u32 em_address) = 0;
 		virtual void ClearCache() = 0;
 		virtual void UpdateFCR31() = 0;
-		virtual MIPSOpcode GetOriginalOp(MIPSOpcode op) = 0;
-
-		// No jit operations may be run between these calls.
-		// Meant to be used to make memory safe for savestates, memcpy, etc.
-		virtual std::vector<u32> SaveAndClearEmuHackOps() = 0;
-		virtual void RestoreSavedEmuHackOps(std::vector<u32> saved) = 0;
 
 		// Block linking. This may need to work differently for whole-function JITs and stuff
 		// like that.
