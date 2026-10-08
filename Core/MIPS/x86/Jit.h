@@ -268,6 +268,9 @@ private:
 	}
 
 	bool PredictTakeBranch(u32 targetAddr, bool likely);
+	u32 GetBlockShadowHookValue() const override {
+		return (u32)(blockShadowHook - GetBasePtr());
+	}
 	bool IsAtDispatchFetch(const u8 *codePtr) const override {
 		return codePtr == dispatcherFetch;
 	}
@@ -303,6 +306,7 @@ private:
 	const u8 *endOfPregeneratedCode;
 
 	const u8 *crashHandler;
+	const u8 *blockShadowHook;
 
 	friend class JitSafeMem;
 	friend class JitSafeMemFuncs;

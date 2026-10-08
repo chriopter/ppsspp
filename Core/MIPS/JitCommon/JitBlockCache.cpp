@@ -255,6 +255,7 @@ int JitBlockCache::GetBlockNumberFromStartAddress(u32 addr) const {
 	if (!blocks_ || !Memory::IsValid4AlignedAddress(addr))
 		return -1;
 
+	// A replacement hook's value is the dispatcher's compile path, which isn't any block's entry.
 	int bl = GetBlockNumberFromShadowValue(Memory::ReadBlockShadow(addr));
 	if (bl < 0) {
 		return -1;

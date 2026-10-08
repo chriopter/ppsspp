@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "Common/CommonTypes.h"
+#include "Core/MemMap.h"
 #include "Core/MIPS/MIPS.h"
 
 // TODO: Find a better place for these.
@@ -134,6 +135,9 @@ namespace MIPSComp {
 		virtual void Compile(u32 em_address) = 0;
 		virtual void ClearCache() = 0;
 		virtual void UpdateFCR31() = 0;
+		// What the block shadow holds for a replacement hook without a compiled block. The
+		// dispatcher has to send this to the compiler.
+		virtual u32 GetBlockShadowHookValue() const { return Memory::BLOCK_SHADOW_HOOK_NO_JIT; }
 
 		// Block linking. This may need to work differently for whole-function JITs and stuff
 		// like that.

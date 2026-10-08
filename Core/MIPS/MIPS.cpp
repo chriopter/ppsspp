@@ -253,12 +253,18 @@ MIPSState::MIPSState() {
 MIPSState::~MIPSState() {
 }
 
+// The block shadow's replacement hook entries have to match the JIT's dispatcher.
+static void UpdateBlockShadowHook() {
+	Replacement_SetBlockShadowHook(MIPSComp::jit ? MIPSComp::jit->GetBlockShadowHookValue() : Memory::BLOCK_SHADOW_HOOK_NO_JIT);
+}
+
 void MIPSState::Shutdown() {
 	MIPSComp::JitInterface *oldjit = MIPSComp::jit;
 	if (oldjit) {
 		MIPSComp::jit = nullptr;
 		delete oldjit;
 	}
+	UpdateBlockShadowHook();
 	pendingInvalidates_.clear();
 	invalidateAll_ = false;
 }
@@ -310,6 +316,7 @@ void MIPSState::Init() {
 	} else {
 		MIPSComp::jit = nullptr;
 	}
+	UpdateBlockShadowHook();
 }
 
 bool MIPSState::HasDefaultPrefix() const {
@@ -355,6 +362,7 @@ void MIPSState::UpdateCore(CPUCore desired) {
 	}
 
 	MIPSComp::jit = newjit;
+	UpdateBlockShadowHook();
 }
 
 void MIPSState::DoState(PointerWrap &p) {

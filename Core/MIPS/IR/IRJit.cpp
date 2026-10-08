@@ -185,9 +185,11 @@ void IRJit::RunLoopUntil(u64 globalticks) {
 		compilerEnabled_ = false;
 #endif
 		while (mips->downcount >= 0) {
-			// The block's offset into the IR arena, or 0 for none.
+			// The block's offset into the IR arena, or 0 for none, or a replacement hook (handled by
+			// compiling a block).
 			const u32 offset = *Memory::GetBlockShadowEntry(mips->pc);
-			if (offset != 0) {
+			static_assert(Memory::BLOCK_SHADOW_HOOK_NO_JIT == 1, "IR arena reserves offsets 0 and 1");
+			if (offset > Memory::BLOCK_SHADOW_HOOK_NO_JIT) {
 				const IRInst *instPtr = blocks_.GetArenaPtr() + offset;
 				// First op is always, except when using breakpoints, downcount, to save one dispatch inside IRInterpret.
 				// This branch is very cpu-branch-predictor-friendly so this still beats the dispatch.
@@ -261,7 +263,8 @@ IRBlockCache::IRBlockCache(bool compileToNative) : compileToNative_(compileToNat
 int IRBlockCache::AllocateBlock(int emAddr, u32 origSize, const std::vector<IRInst> &insts) {
 	const u32 MAX_ARENA_SIZE = 0x1000000 - 1;
 	if (arena_.empty()) {
-		// Offset 0 would mean "no block" in the block shadow.
+		// Offset 0 would mean "no block" in the block shadow, and 1 a replacement hook.
+		arena_.push_back(IRInst{ IROp::Bad });
 		arena_.push_back(IRInst{ IROp::Bad });
 	}
 	int offset = (int)arena_.size();

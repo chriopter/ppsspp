@@ -181,6 +181,9 @@ public:
 	const u8 *GetDispatcher() const override {
 		return dispatcher;
 	}
+	u32 GetBlockShadowHookValue() const override {
+		return (u32)(blockShadowHook - GetBasePtr());
+	}
 	bool IsAtDispatchFetch(const u8 *ptr) const override {
 		return ptr == dispatcherFetch;
 	}
@@ -287,6 +290,7 @@ public:
 	const u8 *updateRoundingMode;
 
 	const u8 *crashHandler;
+	const u8 *blockShadowHook;
 
 	int jitStartOffset;
 

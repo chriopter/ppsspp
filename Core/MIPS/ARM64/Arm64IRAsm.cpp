@@ -214,6 +214,8 @@ void Arm64JitBackend::GenerateFixedCode(MIPSState *mipsState) {
 			SetJumpTarget(skipJump);
 
 			// No block found, let's jit.  We don't need to save static regs, they're all callee saved.
+			// A replacement hook's block shadow entry jumps here too, see GetBlockShadowHookValue().
+			hooks_.blockShadowHook = GetCodePtr();
 			RestoreRoundingMode(true);
 			WriteDebugProfilerStatus(IRProfilerStatus::COMPILING);
 			QuickCallFunctionR(SCRATCH1_64, &MIPSComp::JitAt, CTXREG);

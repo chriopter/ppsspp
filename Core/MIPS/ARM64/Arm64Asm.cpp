@@ -258,6 +258,8 @@ void Arm64Jit::GenerateFixedCode(const JitOptions &jo) {
 			SetJumpTarget(skipJump);
 
 			// No block found, let's jit. I don't think we actually need to save static regs that are in callee-save regs here but whatever.
+			// A replacement hook's block shadow entry jumps here too, see GetBlockShadowHookValue().
+			blockShadowHook = GetCodePtr();
 			// Also, rounding mode gotta be irrelevant here..
 			SaveStaticRegisters();
 			RestoreRoundingMode(true);

@@ -528,7 +528,8 @@ bool ClearBlockShadow(u32 address, u32 value) {
 	u32 *entry = GetBlockShadowEntry(address);
 	if (*entry != value)
 		return false;
-	*entry = 0;
+	// A replacement hook keeps the entry nonzero, see ReplaceTables.h.
+	*entry = Replacement_IsHooked(address) ? Replacement_GetBlockShadowHook() : 0;
 	return true;
 }
 

@@ -119,8 +119,15 @@ enum {
 #endif
 };
 
+enum : u32 {
+	// The block shadow value for a replacement hook when no JIT is running, and for the IR
+	// interpreter, which keeps this offset in its arena empty.
+	BLOCK_SHADOW_HOOK_NO_JIT = 1,
+};
+
 // One u32 per guest instruction, at the same byte offset as the instruction (after masking with
-// BLOCK_SHADOW_MASK). Holds the JIT's handle for the block starting there, or 0 for none.
+// BLOCK_SHADOW_MASK). Holds the JIT's handle for the block starting there, 0 for none, or the
+// replacement hook value (see ReplaceTables.h).
 // Only the ranges backed by PSP memory are committed, so it's never safe to touch an entry for
 // an address that isn't valid. Reallocated by Init(), along with base.
 extern u8 *blockShadow;
@@ -132,7 +139,8 @@ inline u32 *GetBlockShadowEntry(u32 address) {
 // These check the address, and are safe to call when there's no shadow (after Shutdown()).
 u32 ReadBlockShadow(u32 address);
 void WriteBlockShadow(u32 address, u32 value);
-// Clears the entry only if it still holds value. Returns true if it did.
+// Clears the entry only if it still holds value, back to the hook value if the address is hooked.
+// Returns true if it did.
 bool ClearBlockShadow(u32 address, u32 value);
 
 enum {

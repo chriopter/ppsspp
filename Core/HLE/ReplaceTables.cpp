@@ -1758,16 +1758,20 @@ struct InstalledReplacement {
 static std::map<u32, InstalledReplacement> installedReplacements;
 static std::unordered_map<std::string, std::vector<int>> replacementNameLookup;
 
-// Static, so it's never null and its pages are only backed once touched.
-u32 g_replacementBits[REPLACEMENT_BITS_WORDS];
+// What the block shadow holds at a hooked instruction without a compiled block. The JIT's value
+// sends the dispatcher on to the compiler, which handles the hook.
+static u32 shadowHookValue = Memory::BLOCK_SHADOW_HOOK_NO_JIT;
 
-static void SetReplacementBit(u32 key, bool set) {
-	const u32 index = key >> 2;
-	if (set) {
-		g_replacementBits[index >> 5] |= 1U << (index & 31);
-	} else {
-		g_replacementBits[index >> 5] &= ~(1U << (index & 31));
+// Puts the hook value at an otherwise empty entry.
+static void MarkHook(u32 address) {
+	if (Memory::ReadBlockShadow(address) == 0) {
+		Memory::WriteBlockShadow(address, shadowHookValue);
 	}
+}
+
+// Call after erasing the hook, and after invalidating any block that compiled it in.
+static void UnmarkHook(u32 address) {
+	Memory::ClearBlockShadow(address, shadowHookValue);
 }
 
 static void InvalidateReplacedAddress(u32 address) {
@@ -1796,11 +1800,27 @@ void Replacement_Init() {
 }
 
 void Replacement_Shutdown() {
-	for (const auto &[key, repl] : installedReplacements) {
-		SetReplacementBit(key, false);
-	}
-	installedReplacements.clear();
+	RestoreReplacedInstructions(0, 0xFFFFFFFF);
 	replacementNameLookup.clear();
+}
+
+void Replacement_SetBlockShadowHook(u32 value) {
+	const u32 oldValue = shadowHookValue;
+	shadowHookValue = value;
+	for (const auto &[key, repl] : installedReplacements) {
+		const u32 entry = Memory::ReadBlockShadow(key);
+		if (entry == 0 || entry == oldValue) {
+			Memory::WriteBlockShadow(key, value);
+		}
+	}
+}
+
+u32 Replacement_GetBlockShadowHook() {
+	return shadowHookValue;
+}
+
+bool Replacement_IsHooked(u32 address) {
+	return installedReplacements.count(address & Memory::BLOCK_SHADOW_MASK) != 0;
 }
 
 int GetNumReplacementFuncs() {
@@ -1842,8 +1862,8 @@ static bool WriteReplaceInstruction(u32 address, int index, u32 funcStart, u32 f
 		WARN_LOG(Log::HLE, "Replacement func changed at %08x (%d -> %d)", address, iter->second.index, index);
 	}
 	installedReplacements[key] = { index, memOp, funcStart, funcSize, funcHash };
-	SetReplacementBit(key, true);
 	InvalidateReplacedAddress(address);
+	MarkHook(address);
 	return true;
 }
 
@@ -1882,8 +1902,8 @@ void WriteReplaceInstructions(u32 address, u64 hash, int size) {
 void RestoreReplacedInstruction(u32 address) {
 	const u32 key = address & Memory::BLOCK_SHADOW_MASK;
 	if (installedReplacements.erase(key) != 0) {
-		SetReplacementBit(key, false);
 		InvalidateReplacedAddress(address);
+		UnmarkHook(address);
 		NOTICE_LOG(Log::HLE, "Restored replaced func at %08x", address);
 	}
 }
@@ -1896,14 +1916,17 @@ void RestoreReplacedInstructions(u32 startAddr, u32 endAddr) {
 		std::swap(endAddr, startAddr);
 	const auto start = installedReplacements.lower_bound(startAddr & Memory::BLOCK_SHADOW_MASK);
 	const auto end = installedReplacements.upper_bound(endAddr & Memory::BLOCK_SHADOW_MASK);
-	int restored = 0;
+	std::vector<u32> restored;
 	for (auto it = start; it != end; ++it) {
-		SetReplacementBit(it->first, false);
-		InvalidateReplacedAddress(it->first);
-		++restored;
+		restored.push_back(it->first);
 	}
-	INFO_LOG(Log::HLE, "Restored %d replaced funcs between %08x-%08x", restored, startAddr, endAddr);
+	// Erase first, so blocks destroyed below don't put the hook back.
 	installedReplacements.erase(start, end);
+	for (u32 key : restored) {
+		InvalidateReplacedAddress(key);
+		UnmarkHook(key);
+	}
+	INFO_LOG(Log::HLE, "Restored %d replaced funcs between %08x-%08x", (int)restored.size(), startAddr, endAddr);
 }
 
 void Replacement_CheckRange(u32 address, u32 length) {
@@ -1914,8 +1937,10 @@ void Replacement_CheckRange(u32 address, u32 length) {
 		const u32 funcStart = repl.funcStart & Memory::BLOCK_SHADOW_MASK;
 		if (funcStart < end && funcStart + repl.funcSize > start && HashReplacedFunc(repl.funcStart, repl.funcSize) != repl.funcHash) {
 			NOTICE_LOG(Log::HLE, "Replaced func changed at %08x, dropping its hook at %08x", repl.funcStart, it->first);
-			SetReplacementBit(it->first, false);
+			const u32 key = it->first;
 			it = installedReplacements.erase(it);
+			// The caller invalidates the range's blocks.
+			UnmarkHook(key);
 		} else {
 			++it;
 		}
@@ -1932,8 +1957,8 @@ MIPSOpcode GetReplacementOpAt(u32 address) {
 	if (iter->second.origOp != memOp) {
 		// The game wrote over the hooked instruction, so the hook goes with it.
 		NOTICE_LOG(Log::HLE, "Replaced func changed at %08x", address);
-		SetReplacementBit(key, false);
 		installedReplacements.erase(iter);
+		UnmarkHook(address);
 		return MIPSOpcode(memOp);
 	}
 	return MIPSOpcode(MIPS_EMUHACK_CALL_REPLACEMENT | iter->second.index);

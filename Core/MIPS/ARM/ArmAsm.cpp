@@ -217,6 +217,8 @@ void ArmJit::GenerateFixedCode() {
 			SetCC(CC_AL);
 
 			// No block found, let's jit
+			// A replacement hook's block shadow entry jumps here too, see GetBlockShadowHookValue().
+			blockShadowHook = GetCodePtr();
 			SaveDowncount();
 			RestoreRoundingMode(true);
 			QuickCallFunctionR(R2, (void *)&MIPSComp::JitAt, CTXREG);

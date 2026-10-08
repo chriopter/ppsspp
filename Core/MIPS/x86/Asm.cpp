@@ -190,6 +190,8 @@ void Jit::GenerateFixedCode(JitOptions &jo) {
 			SetJumpTarget(notfound);
 
 			//Ok, no block, let's jit
+			// A replacement hook's block shadow entry jumps here too, see GetBlockShadowHookValue().
+			blockShadowHook = GetCodePtr();
 			RestoreRoundingMode(true);
 			LEA(PTRBITS, ECX, MDisp(CTXREG, -(s32)offsetof(MIPSState, f[0])));  // Adjust to get the real pointer.
 			ABI_CallFunctionR(reinterpret_cast<void *>(&MIPSComp::JitAt), ECX);
